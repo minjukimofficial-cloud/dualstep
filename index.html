@@ -1,0 +1,1027 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>DualStep v0.2</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: #0f0f1a; color: #fff;
+    min-height: 100vh; overflow-x: hidden;
+  }
+  .screen { display:none; min-height:100vh; flex-direction:column; }
+  .screen.active { display:flex; }
+
+  /* ── 공통 컴포넌트 ── */
+  .header {
+    background: #1a1a2e; padding: 56px 24px 20px;
+    border-bottom: 1px solid #2a2a4a;
+    display: flex; align-items: center; gap: 14px;
+  }
+  .back-btn {
+    background: #2a2a4a; border: none;
+    width: 36px; height: 36px; border-radius: 10px;
+    color: #fff; font-size: 18px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .header-text .title  { font-size: 18px; font-weight: 700; }
+  .header-text .sub    { font-size: 13px; color: #8b9fc7; margin-top: 2px; }
+
+  .body { flex:1; padding: 20px 24px; overflow-y: auto; }
+
+  .card {
+    background: #1a1a2e; border: 1px solid #2a2a4a;
+    border-radius: 16px; padding: 20px; margin-bottom: 14px;
+  }
+  .card-label {
+    font-size: 12px; font-weight: 700; color: #4f8ef7;
+    text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px;
+  }
+
+  .btn {
+    width: 100%; padding: 17px; border: none;
+    border-radius: 14px; font-size: 16px; font-weight: 700;
+    cursor: pointer; transition: opacity .15s; margin-bottom: 10px;
+  }
+  .btn:active { opacity: .75; }
+  .btn-primary { background: linear-gradient(135deg,#4f8ef7,#7c3aed); color:#fff; }
+  .btn-stop    { background: #ef4444; color: #fff; }
+  .btn-outline {
+    background: #1a1a2e; border: 1px solid #2a2a4a;
+    color: #8b9fc7;
+  }
+
+  .step-bar {
+    display:flex; gap:6px; padding: 14px 24px 0;
+  }
+  .step-dot {
+    flex:1; height:4px; border-radius:2px;
+    background:#2a2a4a; transition: background .3s;
+  }
+  .step-dot.active { background:#4f8ef7; }
+  .step-dot.done   { background:#7c3aed; }
+
+  /* ── 홈 ── */
+  .home-hero {
+    background: linear-gradient(135deg,#1a1a2e,#16213e);
+    padding: 60px 24px 36px; text-align: center;
+  }
+  .logo {
+    width:72px; height:72px; border-radius:20px; margin:0 auto 16px;
+    background: linear-gradient(135deg,#4f8ef7,#7c3aed);
+    display:flex; align-items:center; justify-content:center;
+    font-size:34px;
+  }
+  .app-name  { font-size:28px; font-weight:800; }
+  .app-desc  { font-size:14px; color:#8b9fc7; margin-top:6px; }
+
+  .sensor-status {
+    display:flex; align-items:center; gap:8px;
+    padding: 10px 24px; background:#1a1a2e;
+    border-bottom: 1px solid #2a2a4a;
+    font-size:13px;
+  }
+  .dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+  .dot-green { background:#10b981; animation: pulse 2s infinite; }
+  .dot-red   { background:#ef4444; }
+  .dot-yellow{ background:#f59e0b; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+  .row { display:flex; justify-content:space-between; align-items:center; }
+  .row + .row { border-top:1px solid #2a2a4a; margin-top:10px; padding-top:10px; }
+  .row .lbl { font-size:14px; color:#8b9fc7; }
+  .row .val { font-size:14px; font-weight:700; }
+
+  .tab-bar {
+    background:#1a1a2e; border-top:1px solid #2a2a4a;
+    display:flex; padding:10px 0 28px; position:sticky; bottom:0;
+  }
+  .tab { flex:1; display:flex; flex-direction:column; align-items:center;
+    gap:3px; cursor:pointer; padding:4px; }
+  .tab .icon  { font-size:22px; }
+  .tab .lbl   { font-size:10px; color:#8b9fc7; font-weight:600; }
+  .tab.active .lbl { color:#4f8ef7; }
+
+  /* ── 실시간 센서 시각화 ── */
+  .sensor-viz {
+    background:#0a0a18; border:1px solid #2a2a4a;
+    border-radius:14px; padding:16px; margin-bottom:14px;
+  }
+  .viz-label { font-size:12px; color:#4f8ef7; font-weight:700;
+    text-transform:uppercase; letter-spacing:.5px; margin-bottom:10px; }
+  canvas { width:100%; height:80px; border-radius:8px; display:block; }
+
+  /* ── 타이머 + 스텝 카운터 ── */
+  .big-timer {
+    font-size:72px; font-weight:900; color:#4f8ef7;
+    text-align:center; letter-spacing:-3px; line-height:1;
+    padding:10px 0 4px;
+  }
+  .timer-sub { text-align:center; color:#8b9fc7; font-size:13px; margin-bottom:14px; }
+
+  .step-counter-row {
+    display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:14px;
+  }
+  .stat-box {
+    background:#0f0f1a; border:1px solid #2a2a4a;
+    border-radius:12px; padding:14px; text-align:center;
+  }
+  .stat-val  { font-size:28px; font-weight:800; color:#fff; }
+  .stat-lbl  { font-size:12px; color:#8b9fc7; margin-top:2px; }
+
+  /* ── 인지과제 ── */
+  .cog-card {
+    background:#0f3460; border:1px solid #1a4a8a;
+    border-radius:16px; padding:20px; text-align:center; margin-bottom:14px;
+  }
+  .cog-lbl { font-size:12px; color:#4f8ef7; font-weight:700;
+    text-transform:uppercase; letter-spacing:.5px; margin-bottom:6px; }
+  .cog-num { font-size:52px; font-weight:900; color:#4f8ef7; line-height:1; }
+  .cog-hint { font-size:13px; color:#8b9fc7; margin-top:6px; }
+
+  .cog-btns { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:14px; }
+  .btn-correct { background:#064e3b; border:1px solid #10b981;
+    color:#10b981; border-radius:14px; padding:16px;
+    font-size:18px; font-weight:700; cursor:pointer; transition:all .15s; }
+  .btn-wrong   { background:#7f1d1d; border:1px solid #ef4444;
+    color:#ef4444; border-radius:14px; padding:16px;
+    font-size:18px; font-weight:700; cursor:pointer; transition:all .15s; }
+  .btn-correct:active { background:#10b981; color:#fff; }
+  .btn-wrong:active   { background:#ef4444; color:#fff; }
+
+  /* ── 결과 ── */
+  .result-hero {
+    background:linear-gradient(135deg,#0f3460,#16213e);
+    padding:56px 24px 28px; text-align:center;
+  }
+  .result-emoji { font-size:60px; margin-bottom:10px; }
+  .result-title { font-size:24px; font-weight:800; }
+  .result-date  { font-size:13px; color:#8b9fc7; margin-top:4px; }
+
+  .dtc-big {
+    background:linear-gradient(135deg,#0f3460,#1a1a2e);
+    border:2px solid #4f8ef7; border-radius:20px;
+    padding:24px; text-align:center; margin-bottom:14px;
+  }
+  .dtc-big .lbl { font-size:12px; color:#4f8ef7; font-weight:700;
+    text-transform:uppercase; letter-spacing:.5px; margin-bottom:6px; }
+  .dtc-big .num { font-size:56px; font-weight:900; color:#4f8ef7; line-height:1; }
+  .dtc-big .unit { font-size:18px; color:#8b9fc7; }
+
+  .badge {
+    display:inline-block; padding:6px 16px; border-radius:20px;
+    font-size:13px; font-weight:700; margin-top:10px;
+  }
+  .badge-green { background:#064e3b; color:#34d399; }
+  .badge-amber { background:#78350f; color:#fbbf24; }
+  .badge-red   { background:#7f1d1d; color:#f87171; }
+
+  .metric-item { margin-bottom:12px; }
+  .metric-row  { display:flex; justify-content:space-between; margin-bottom:5px; }
+  .metric-name { font-size:14px; color:#8b9fc7; }
+  .metric-val  { font-size:16px; font-weight:800; }
+  .bar-bg { height:6px; background:#2a2a4a; border-radius:3px; overflow:hidden; }
+  .bar    { height:100%; border-radius:3px; transition:width 1.2s ease; }
+  .bar-g  { background:linear-gradient(90deg,#10b981,#34d399); }
+  .bar-a  { background:linear-gradient(90deg,#f59e0b,#fbbf24); }
+  .bar-r  { background:linear-gradient(90deg,#ef4444,#f87171); }
+
+  .disclaimer {
+    background:#1a1a2e; border:1px solid #2a2a4a;
+    border-radius:12px; padding:14px;
+    font-size:12px; color:#8b9fc7; line-height:1.6;
+    margin-bottom:14px;
+  }
+
+  /* ── 기록 ── */
+  .history-item {
+    background:#1a1a2e; border:1px solid #2a2a4a;
+    border-radius:14px; padding:16px; margin-bottom:10px;
+  }
+  .history-top { display:flex; justify-content:space-between; align-items:center; }
+  .history-date { font-size:13px; color:#8b9fc7; }
+  .history-dtc  { font-size:20px; font-weight:800; }
+  .history-stats { display:flex; gap:14px; margin-top:10px;
+    padding-top:10px; border-top:1px solid #2a2a4a; }
+  .history-stat { font-size:12px; color:#8b9fc7; }
+  .history-stat span { color:#fff; font-weight:700; }
+
+  .empty { text-align:center; padding:60px 0; }
+  .empty-icon { font-size:48px; margin-bottom:12px; }
+  .empty-text { color:#8b9fc7; font-size:15px; }
+
+  /* 알림 토스트 */
+  .toast {
+    position:fixed; bottom:100px; left:50%; transform:translateX(-50%);
+    background:#4f8ef7; color:#fff; padding:10px 20px;
+    border-radius:20px; font-size:14px; font-weight:700;
+    opacity:0; transition:opacity .3s; pointer-events:none; z-index:999;
+    white-space:nowrap;
+  }
+  .toast.show { opacity:1; }
+
+  /* 가속도계 디버그 패널 */
+  .debug-panel {
+    background:#0a0a18; border:1px solid #2a2a4a;
+    border-radius:12px; padding:14px; margin-bottom:14px;
+    font-family: monospace; font-size:12px;
+  }
+  .debug-row { display:flex; justify-content:space-between;
+    padding:3px 0; color:#8b9fc7; }
+  .debug-row span { color:#4f8ef7; font-weight:700; }
+</style>
+</head>
+<body>
+
+<!-- 토스트 알림 -->
+<div class="toast" id="toast"></div>
+
+<!-- ══════════════ 홈 ══════════════ -->
+<div class="screen active" id="screen-home">
+  <div class="home-hero">
+    <div class="logo">🧠</div>
+    <div class="app-name">DualStep</div>
+    <div class="app-desc">이중과제 보행 인지 스크리닝 v0.2</div>
+  </div>
+
+  <div class="sensor-status" id="sensor-status">
+    <div class="dot dot-yellow" id="sensor-dot"></div>
+    <span id="sensor-text">센서 권한 확인 필요 — 아래 버튼을 누르세요</span>
+  </div>
+
+  <div class="body">
+    <div class="card">
+      <div class="card-label">검사 안내</div>
+      <div class="row"><span class="lbl">소요 시간</span><span class="val">약 10분</span></div>
+      <div class="row"><span class="lbl">필요 공간</span><span class="val">10m 직선</span></div>
+      <div class="row"><span class="lbl">폰 위치</span><span class="val">허리 벨트 고정</span></div>
+      <div class="row"><span class="lbl">구성</span><span class="val">단일 + 이중과제</span></div>
+    </div>
+
+    <div class="card">
+      <div class="card-label">측정 원리</div>
+      <div style="font-size:13px; color:#8b9fc7; line-height:1.7;">
+        📱 허리 가속도계로 발걸음 피크 감지<br>
+        ⏱ 10m 거리 ÷ 걸린 시간 = 보행속도<br>
+        🧮 DTC = (단일속도 - 이중속도) / 단일속도 × 100<br>
+        🧠 인지과제 정확도 동시 측정
+      </div>
+    </div>
+
+    <button class="btn btn-primary" id="permission-btn" onclick="requestSensorPermission()">
+      📡 센서 권한 허용 (먼저 눌러주세요)
+    </button>
+    <button class="btn btn-primary" onclick="goToMeasure()" id="start-btn" style="display:none">
+      검사 시작하기
+    </button>
+    <button class="btn btn-outline" onclick="showScreen('history')">📋 이전 기록 보기</button>
+  </div>
+
+  <div class="tab-bar">
+    <div class="tab active" onclick="showScreen('home')">
+      <span class="icon">🏠</span><span class="lbl">홈</span>
+    </div>
+    <div class="tab" onclick="goToMeasure()">
+      <span class="icon">▶️</span><span class="lbl">검사</span>
+    </div>
+    <div class="tab" onclick="showScreen('history')">
+      <span class="icon">📊</span><span class="lbl">기록</span>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ 단일과제 ══════════════ -->
+<div class="screen" id="screen-single">
+  <div class="header">
+    <button class="back-btn" onclick="stopAll();showScreen('home')">✕</button>
+    <div class="header-text">
+      <div class="title">단일과제 보행</div>
+      <div class="sub">편안하게 10m를 걸어주세요</div>
+    </div>
+  </div>
+  <div class="step-bar">
+    <div class="step-dot done"></div>
+    <div class="step-dot active"></div>
+    <div class="step-dot"></div>
+    <div class="step-dot"></div>
+  </div>
+
+  <div class="body">
+    <!-- 실시간 가속도계 시각화 -->
+    <div class="sensor-viz">
+      <div class="viz-label">📡 실시간 가속도계 (Z축 — 상하 움직임)</div>
+      <canvas id="canvas-single" width="600" height="80"></canvas>
+    </div>
+
+    <!-- 디버그 패널 -->
+    <div class="debug-panel" id="debug-single">
+      <div class="debug-row">Z축 가속도<span id="dbg-z">0.00</span></div>
+      <div class="debug-row">감지된 걸음 수<span id="dbg-steps">0</span></div>
+      <div class="debug-row">피크 임계값<span id="dbg-thresh">--</span></div>
+      <div class="debug-row">센서 샘플/초<span id="dbg-hz">--</span></div>
+    </div>
+
+    <div class="big-timer" id="single-timer">00:00</div>
+    <div class="timer-sub">측정 시간 (10m 걷고 정지 버튼)</div>
+
+    <div class="step-counter-row">
+      <div class="stat-box">
+        <div class="stat-val" id="single-steps">0</div>
+        <div class="stat-lbl">감지된 걸음</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-val" id="single-speed">—</div>
+        <div class="stat-lbl">현재 속도 m/s</div>
+      </div>
+    </div>
+
+    <button class="btn btn-primary" id="single-start-btn" onclick="startSingleMeasure()">
+      ▶ 측정 시작
+    </button>
+    <button class="btn btn-stop" id="single-stop-btn" style="display:none" onclick="stopSingleMeasure()">
+      ⏹ 10m 완료 — 정지
+    </button>
+    <button class="btn btn-outline" onclick="stopAll();showScreen('home')">취소</button>
+  </div>
+</div>
+
+<!-- ══════════════ 이중과제 ══════════════ -->
+<div class="screen" id="screen-dual">
+  <div class="header">
+    <button class="back-btn" onclick="stopAll();showScreen('home')">✕</button>
+    <div class="header-text">
+      <div class="title">이중과제 보행</div>
+      <div class="sub">걸으면서 숫자 빼기</div>
+    </div>
+  </div>
+  <div class="step-bar">
+    <div class="step-dot done"></div>
+    <div class="step-dot done"></div>
+    <div class="step-dot active"></div>
+    <div class="step-dot"></div>
+  </div>
+
+  <div class="body">
+    <div class="cog-card">
+      <div class="cog-lbl">인지과제 — 소리내어 말하기</div>
+      <div class="cog-num" id="expected-num">100</div>
+      <div class="cog-hint">100에서 3씩 빼주세요</div>
+    </div>
+
+    <div class="cog-btns">
+      <button class="btn-correct" onclick="markAnswer(true)">✓ 정답</button>
+      <button class="btn-wrong"   onclick="markAnswer(false)">✗ 오답</button>
+    </div>
+
+    <div class="sensor-viz">
+      <div class="viz-label">📡 실시간 가속도계</div>
+      <canvas id="canvas-dual" width="600" height="80"></canvas>
+    </div>
+
+    <div class="big-timer" id="dual-timer">00:00</div>
+    <div class="timer-sub">측정 시간</div>
+
+    <div class="step-counter-row">
+      <div class="stat-box">
+        <div class="stat-val" id="dual-steps">0</div>
+        <div class="stat-lbl">감지된 걸음</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-val" id="dual-acc">—</div>
+        <div class="stat-lbl">정확도 %</div>
+      </div>
+    </div>
+
+    <button class="btn btn-primary" id="dual-start-btn" onclick="startDualMeasure()">
+      ▶ 측정 시작
+    </button>
+    <button class="btn btn-stop" id="dual-stop-btn" style="display:none" onclick="stopDualMeasure()">
+      ⏹ 10m 완료 — 정지
+    </button>
+    <button class="btn btn-outline" onclick="stopAll();showScreen('home')">취소</button>
+  </div>
+</div>
+
+<!-- ══════════════ 결과 ══════════════ -->
+<div class="screen" id="screen-result">
+  <div class="result-hero">
+    <div class="result-emoji" id="res-emoji">📊</div>
+    <div class="result-title">검사 완료</div>
+    <div class="result-date" id="res-date"></div>
+  </div>
+
+  <div class="body">
+    <div class="dtc-big">
+      <div class="lbl">듀얼태스크 코스트 (DTC)</div>
+      <div><span class="num" id="res-dtc">—</span><span class="unit"> %</span></div>
+      <div id="res-badge"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-label">상세 결과</div>
+      <div class="metric-item">
+        <div class="metric-row">
+          <span class="metric-name">단일과제 보행속도</span>
+          <span class="metric-val" id="res-st">—</span>
+        </div>
+        <div class="bar-bg"><div class="bar" id="bar-st" style="width:0%"></div></div>
+      </div>
+      <div class="metric-item" style="margin-top:14px">
+        <div class="metric-row">
+          <span class="metric-name">이중과제 보행속도</span>
+          <span class="metric-val" id="res-dt">—</span>
+        </div>
+        <div class="bar-bg"><div class="bar" id="bar-dt" style="width:0%"></div></div>
+      </div>
+      <div class="metric-item" style="margin-top:14px">
+        <div class="metric-row">
+          <span class="metric-name">인지과제 정확도</span>
+          <span class="metric-val" id="res-acc">—</span>
+        </div>
+        <div class="bar-bg"><div class="bar" id="bar-acc" style="width:0%"></div></div>
+      </div>
+      <div class="metric-item" style="margin-top:14px">
+        <div class="metric-row">
+          <span class="metric-name">감지 걸음 수 (단일/이중)</span>
+          <span class="metric-val" id="res-steps">—</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-label">참고 기준값 (선행연구 기반)</div>
+      <div class="row"><span class="lbl">이중과제 보행속도</span><span class="val">≥ 0.66 m/s 권장</span></div>
+      <div class="row"><span class="lbl">DTC</span><span class="val">≤ 20% 정상 구간</span></div>
+      <div class="row"><span class="lbl">인지 정확도</span><span class="val">≥ 80% 권장</span></div>
+    </div>
+
+    <div class="disclaimer">
+      ⚠️ 이 결과는 연구 참고용이며 의학적 진단이 아닙니다.
+      정확한 평가는 전문 의료진과 상담하세요.
+    </div>
+
+    <button class="btn btn-primary" onclick="saveResult()">결과 저장 후 홈으로</button>
+    <button class="btn btn-outline" onclick="exportCSV()">📥 CSV 내보내기</button>
+  </div>
+</div>
+
+<!-- ══════════════ 기록 ══════════════ -->
+<div class="screen" id="screen-history">
+  <div class="header">
+    <button class="back-btn" onclick="showScreen('home')">←</button>
+    <div class="header-text">
+      <div class="title">검사 기록</div>
+      <div class="sub" id="history-count">0건</div>
+    </div>
+  </div>
+  <div class="body" id="history-body"></div>
+  <div class="tab-bar">
+    <div class="tab" onclick="showScreen('home')">
+      <span class="icon">🏠</span><span class="lbl">홈</span>
+    </div>
+    <div class="tab" onclick="goToMeasure()">
+      <span class="icon">▶️</span><span class="lbl">검사</span>
+    </div>
+    <div class="tab active" onclick="showScreen('history')">
+      <span class="icon">📊</span><span class="lbl">기록</span>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ════════════════════════════════════════
+   상태 관리
+════════════════════════════════════════ */
+const S = {
+  sensorGranted: false,
+  // 단일과제
+  stRunning: false, stTime: 0, stInterval: null,
+  stSteps: 0, stStartTime: null,
+  // 이중과제
+  dtRunning: false, dtTime: 0, dtInterval: null,
+  dtSteps: 0, dtStartTime: null,
+  correct: 0, total: 0, currentNum: 100,
+  // 가속도계
+  motionHandler: null,
+  zBuffer: [],          // Z축 원시 데이터 버퍼 (필터링용)
+  zFiltered: [],        // 저역통과 필터 적용 후
+  lastPeakTime: 0,      // 마지막 피크 감지 시각
+  peakThreshold: 1.2,   // 피크 감지 임계값 (동적 조정)
+  hz: 0, hzCount: 0, hzTimer: null,
+  // 캔버스 데이터
+  canvasData: [],
+  history: JSON.parse(localStorage.getItem('ds_history') || '[]'),
+  // 결과 임시 저장
+  result: null
+};
+
+const DIST = 10; // 고정 거리 10m
+const CANVAS_LEN = 120; // 캔버스에 보여줄 데이터 포인트 수
+
+/* ════════════════════════════════════════
+   화면 전환
+════════════════════════════════════════ */
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('screen-' + id).classList.add('active');
+  window.scrollTo(0,0);
+  if (id === 'history') renderHistory();
+}
+
+function goToMeasure() {
+  if (!S.sensorGranted) {
+    showToast('먼저 센서 권한을 허용해주세요');
+    showScreen('home');
+    return;
+  }
+  resetSingle();
+  showScreen('single');
+}
+
+/* ════════════════════════════════════════
+   토스트 알림
+════════════════════════════════════════ */
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+/* ════════════════════════════════════════
+   센서 권한 요청 (iOS 13+ 필수)
+════════════════════════════════════════ */
+async function requestSensorPermission() {
+  // iOS 13+ DeviceMotionEvent.requestPermission
+  if (typeof DeviceMotionEvent !== 'undefined' &&
+      typeof DeviceMotionEvent.requestPermission === 'function') {
+    try {
+      const perm = await DeviceMotionEvent.requestPermission();
+      if (perm === 'granted') {
+        onSensorGranted();
+      } else {
+        setSensorStatus('red', '센서 권한이 거부됐어요. 설정에서 허용해주세요.');
+      }
+    } catch(e) {
+      setSensorStatus('red', '권한 요청 실패: ' + e.message);
+    }
+  } else if (typeof DeviceMotionEvent !== 'undefined') {
+    // Android / 구형 iOS — 권한 없이 바로 사용
+    onSensorGranted();
+  } else {
+    // 데스크톱 — 시뮬레이션 모드
+    onSensorGranted(true);
+  }
+}
+
+function onSensorGranted(simulation = false) {
+  S.sensorGranted = true;
+  if (simulation) {
+    setSensorStatus('yellow', '데스크톱 모드 — 시뮬레이션으로 실행');
+    S.simulationMode = true;
+  } else {
+    setSensorStatus('green', '센서 연결됨 — 검사 시작 가능');
+    S.simulationMode = false;
+  }
+  document.getElementById('permission-btn').style.display = 'none';
+  document.getElementById('start-btn').style.display = 'block';
+}
+
+function setSensorStatus(color, msg) {
+  const dot = document.getElementById('sensor-dot');
+  dot.className = 'dot dot-' + color;
+  document.getElementById('sensor-text').textContent = msg;
+}
+
+/* ════════════════════════════════════════
+   핵심 알고리즘: 가속도계 → 걸음 감지
+   
+   원리:
+   1. 저역통과 필터(LPF)로 고주파 노이즈 제거
+   2. Z축 합력(vertical acceleration) 추출
+   3. 동적 임계값 기반 피크 감지
+   4. 최소 피크 간격(200ms) 조건으로 오탐 방지
+════════════════════════════════════════ */
+function startAccelerometer(onStep, canvasId) {
+  if (S.simulationMode) {
+    startSimulation(onStep, canvasId);
+    return;
+  }
+
+  let alpha = 0.8; // LPF 계수 (0=강한 필터, 1=필터 없음)
+  let prevFiltered = 9.8;
+  let lastSampleTime = Date.now();
+  S.hzCount = 0;
+
+  // Hz 측정 (1초마다)
+  S.hzTimer = setInterval(() => {
+    S.hz = S.hzCount;
+    S.hzCount = 0;
+    if (document.getElementById('dbg-hz'))
+      document.getElementById('dbg-hz').textContent = S.hz + ' Hz';
+  }, 1000);
+
+  S.motionHandler = (event) => {
+    const now = Date.now();
+    S.hzCount++;
+
+    // 가속도 추출 (중력 포함)
+    const ag = event.accelerationIncludingGravity;
+    if (!ag) return;
+
+    const x = ag.x || 0;
+    const y = ag.y || 0;
+    const z = ag.z || 0;
+
+    // 합력 계산 (방향 무관하게 전체 움직임 크기)
+    const magnitude = Math.sqrt(x*x + y*y + z*z);
+
+    // 저역통과 필터 (스무딩)
+    const filtered = alpha * prevFiltered + (1 - alpha) * magnitude;
+    prevFiltered = filtered;
+
+    // 버퍼에 추가
+    S.zBuffer.push(filtered);
+    if (S.zBuffer.length > 20) S.zBuffer.shift(); // 최근 20개 유지
+
+    // 캔버스 데이터 추가
+    S.canvasData.push(filtered);
+    if (S.canvasData.length > CANVAS_LEN) S.canvasData.shift();
+    drawCanvas(canvasId, S.canvasData);
+
+    // 동적 임계값 (최근 값들의 평균 + 표준편차)
+    if (S.zBuffer.length >= 10) {
+      const avg = S.zBuffer.reduce((a,b) => a+b, 0) / S.zBuffer.length;
+      const std = Math.sqrt(S.zBuffer.reduce((a,b) => a + (b-avg)**2, 0) / S.zBuffer.length);
+      S.peakThreshold = avg + std * 0.8;
+      if (document.getElementById('dbg-thresh'))
+        document.getElementById('dbg-thresh').textContent = S.peakThreshold.toFixed(2);
+    }
+
+    // 피크 감지 조건:
+    // 1. 현재 값 > 임계값
+    // 2. 마지막 피크 후 최소 300ms 경과 (너무 빠른 중복 감지 방지)
+    if (filtered > S.peakThreshold && (now - S.lastPeakTime) > 300) {
+      S.lastPeakTime = now;
+      onStep();
+    }
+
+    // 디버그 표시
+    if (document.getElementById('dbg-z'))
+      document.getElementById('dbg-z').textContent = filtered.toFixed(2);
+  };
+
+  window.addEventListener('devicemotion', S.motionHandler);
+}
+
+// 데스크톱 시뮬레이션 (실제 폰 없을 때)
+function startSimulation(onStep, canvasId) {
+  let t = 0;
+  S.simInterval = setInterval(() => {
+    // 보행 패턴 시뮬레이션 (약 1.8보/초)
+    const noise = (Math.random() - 0.5) * 0.3;
+    const step = 9.8 + Math.abs(Math.sin(t * 1.8)) * 1.5 + noise;
+    t += 0.1;
+
+    S.canvasData.push(step);
+    if (S.canvasData.length > CANVAS_LEN) S.canvasData.shift();
+    drawCanvas(canvasId, S.canvasData);
+
+    // 피크마다 걸음 카운트
+    if (Math.sin(t * 1.8) > 0.95 && Math.sin((t-0.1) * 1.8) <= 0.95) {
+      onStep();
+    }
+  }, 50);
+}
+
+function stopAccelerometer() {
+  if (S.motionHandler) {
+    window.removeEventListener('devicemotion', S.motionHandler);
+    S.motionHandler = null;
+  }
+  if (S.simInterval) { clearInterval(S.simInterval); S.simInterval = null; }
+  if (S.hzTimer)     { clearInterval(S.hzTimer); S.hzTimer = null; }
+  S.canvasData = [];
+}
+
+/* ════════════════════════════════════════
+   캔버스 — 실시간 파형 시각화
+════════════════════════════════════════ */
+function drawCanvas(canvasId, data) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0, 0, W, H);
+
+  // 배경
+  ctx.fillStyle = '#0a0a18';
+  ctx.fillRect(0, 0, W, H);
+
+  if (data.length < 2) return;
+
+  // 스케일 계산
+  const min = Math.min(...data) - 0.5;
+  const max = Math.max(...data) + 0.5;
+  const range = max - min || 1;
+
+  // 임계값 선
+  const threshY = H - ((S.peakThreshold - min) / range) * H;
+  ctx.strokeStyle = '#ef4444';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([4, 4]);
+  ctx.beginPath();
+  ctx.moveTo(0, threshY);
+  ctx.lineTo(W, threshY);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // 파형
+  ctx.strokeStyle = '#4f8ef7';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  data.forEach((v, i) => {
+    const x = (i / (CANVAS_LEN - 1)) * W;
+    const y = H - ((v - min) / range) * H;
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+
+  // 범례
+  ctx.fillStyle = '#ef4444';
+  ctx.font = '10px monospace';
+  ctx.fillText('— 임계값', 4, 12);
+  ctx.fillStyle = '#4f8ef7';
+  ctx.fillText('— 가속도', 4, 24);
+}
+
+/* ════════════════════════════════════════
+   단일과제 측정
+════════════════════════════════════════ */
+function resetSingle() {
+  S.stTime = 0; S.stSteps = 0; S.stRunning = false;
+  S.canvasData = [];
+  document.getElementById('single-timer').textContent = '00:00';
+  document.getElementById('single-steps').textContent = '0';
+  document.getElementById('single-speed').textContent = '—';
+  document.getElementById('single-start-btn').style.display = 'block';
+  document.getElementById('single-stop-btn').style.display = 'none';
+}
+
+function startSingleMeasure() {
+  S.stRunning = true;
+  S.stSteps = 0;
+  S.stStartTime = Date.now();
+  S.lastPeakTime = 0;
+
+  document.getElementById('single-start-btn').style.display = 'none';
+  document.getElementById('single-stop-btn').style.display = 'block';
+
+  // 타이머
+  S.stInterval = setInterval(() => {
+    S.stTime++;
+    const m = String(Math.floor(S.stTime/60)).padStart(2,'0');
+    const s = String(S.stTime%60).padStart(2,'0');
+    document.getElementById('single-timer').textContent = m+':'+s;
+    // 실시간 속도 추정
+    if (S.stTime > 0) {
+      const spd = (DIST / S.stTime).toFixed(2);
+      document.getElementById('single-speed').textContent = spd;
+    }
+  }, 1000);
+
+  // 가속도계 시작
+  startAccelerometer(() => {
+    if (!S.stRunning) return;
+    S.stSteps++;
+    document.getElementById('single-steps').textContent = S.stSteps;
+    if (document.getElementById('dbg-steps'))
+      document.getElementById('dbg-steps').textContent = S.stSteps;
+  }, 'canvas-single');
+
+  showToast('측정 시작! 10m를 걸어주세요');
+}
+
+function stopSingleMeasure() {
+  if (!S.stRunning) return;
+  S.stRunning = false;
+  clearInterval(S.stInterval);
+  stopAccelerometer();
+
+  if (S.stTime < 3) {
+    showToast('측정 시간이 너무 짧아요 (최소 3초)');
+    resetSingle();
+    return;
+  }
+
+  showToast('단일과제 완료! 이중과제로 이동합니다');
+
+  // 이중과제 준비
+  setTimeout(() => {
+    S.dtTime = 0; S.dtSteps = 0; S.dtRunning = false;
+    S.correct = 0; S.total = 0; S.currentNum = 100;
+    S.canvasData = [];
+    document.getElementById('expected-num').textContent = '100';
+    document.getElementById('dual-timer').textContent = '00:00';
+    document.getElementById('dual-steps').textContent = '0';
+    document.getElementById('dual-acc').textContent = '—';
+    document.getElementById('dual-start-btn').style.display = 'block';
+    document.getElementById('dual-stop-btn').style.display = 'none';
+    showScreen('dual');
+  }, 800);
+}
+
+/* ════════════════════════════════════════
+   이중과제 측정
+════════════════════════════════════════ */
+function startDualMeasure() {
+  S.dtRunning = true;
+  S.dtSteps = 0;
+  S.lastPeakTime = 0;
+
+  document.getElementById('dual-start-btn').style.display = 'none';
+  document.getElementById('dual-stop-btn').style.display = 'block';
+
+  S.dtInterval = setInterval(() => {
+    S.dtTime++;
+    const m = String(Math.floor(S.dtTime/60)).padStart(2,'0');
+    const s = String(S.dtTime%60).padStart(2,'0');
+    document.getElementById('dual-timer').textContent = m+':'+s;
+  }, 1000);
+
+  startAccelerometer(() => {
+    if (!S.dtRunning) return;
+    S.dtSteps++;
+    document.getElementById('dual-steps').textContent = S.dtSteps;
+  }, 'canvas-dual');
+
+  showToast('측정 시작! 걸으면서 숫자를 빼주세요');
+}
+
+function markAnswer(correct) {
+  if (!S.dtRunning) return;
+  S.total++;
+  if (correct) {
+    S.correct++;
+    S.currentNum -= 3;
+  } else {
+    // 오답도 3씩 감소 (참가자 기준으로)
+    S.currentNum -= 3;
+  }
+  document.getElementById('expected-num').textContent = S.currentNum;
+  const acc = Math.round((S.correct / S.total) * 100);
+  document.getElementById('dual-acc').textContent = acc + '%';
+}
+
+function stopDualMeasure() {
+  if (!S.dtRunning) return;
+  S.dtRunning = false;
+  clearInterval(S.dtInterval);
+  stopAccelerometer();
+
+  if (S.dtTime < 3) {
+    showToast('측정 시간이 너무 짧아요');
+    return;
+  }
+
+  computeAndShowResult();
+}
+
+/* ════════════════════════════════════════
+   결과 계산 및 표시
+════════════════════════════════════════ */
+function computeAndShowResult() {
+  const stSpeed = (DIST / S.stTime).toFixed(2);
+  const dtSpeed = (DIST / S.dtTime).toFixed(2);
+  const dtc     = (((stSpeed - dtSpeed) / stSpeed) * 100).toFixed(1);
+  const acc     = S.total > 0 ? Math.round((S.correct / S.total) * 100) : 0;
+
+  S.result = {
+    date: new Date().toISOString(),
+    stSpeed: parseFloat(stSpeed),
+    dtSpeed: parseFloat(dtSpeed),
+    dtc: parseFloat(dtc),
+    accuracy: acc,
+    stTime: S.stTime, dtTime: S.dtTime,
+    stSteps: S.stSteps, dtSteps: S.dtSteps
+  };
+
+  // 화면 채우기
+  document.getElementById('res-date').textContent =
+    new Date().toLocaleDateString('ko-KR') + ' ' +
+    new Date().toLocaleTimeString('ko-KR', {hour:'2-digit', minute:'2-digit'});
+  document.getElementById('res-st').textContent  = stSpeed + ' m/s';
+  document.getElementById('res-dt').textContent  = dtSpeed + ' m/s';
+  document.getElementById('res-dtc').textContent = dtc;
+  document.getElementById('res-acc').textContent = acc + '%';
+  document.getElementById('res-steps').textContent =
+    S.stSteps + ' / ' + S.dtSteps + '걸음';
+
+  // 위험 등급
+  const dtcN = parseFloat(dtc);
+  const dtN  = parseFloat(dtSpeed);
+  let emoji, badgeClass, badgeText;
+  if (dtcN <= 15 && dtN >= 0.8) {
+    emoji='✅'; badgeClass='badge-green'; badgeText='정상 범위';
+  } else if (dtcN <= 25 && dtN >= 0.66) {
+    emoji='⚠️'; badgeClass='badge-amber'; badgeText='주의 구간';
+  } else {
+    emoji='🔴'; badgeClass='badge-red'; badgeText='전문가 상담 권장';
+  }
+  document.getElementById('res-emoji').textContent = emoji;
+  document.getElementById('res-badge').innerHTML =
+    `<span class="badge ${badgeClass}">${badgeText}</span>`;
+
+  // 막대 차트 (0.1초 후 애니메이션)
+  setTimeout(() => {
+    setBar('bar-st', (parseFloat(stSpeed)/1.5)*100,
+      parseFloat(stSpeed) >= 0.8 ? 'g' : parseFloat(stSpeed) >= 0.66 ? 'a' : 'r');
+    setBar('bar-dt', (parseFloat(dtSpeed)/1.5)*100,
+      parseFloat(dtSpeed) >= 0.66 ? 'g' : parseFloat(dtSpeed) >= 0.5 ? 'a' : 'r');
+    setBar('bar-acc', acc,
+      acc >= 80 ? 'g' : acc >= 60 ? 'a' : 'r');
+  }, 100);
+
+  showScreen('result');
+}
+
+function setBar(id, pct, color) {
+  const el = document.getElementById(id);
+  el.style.width = Math.min(pct, 100) + '%';
+  el.className = 'bar bar-' + color;
+}
+
+/* ════════════════════════════════════════
+   저장 및 내보내기
+════════════════════════════════════════ */
+function saveResult() {
+  if (S.result) {
+    S.history.unshift(S.result);
+    if (S.history.length > 50) S.history.pop(); // 최대 50건
+    localStorage.setItem('ds_history', JSON.stringify(S.history));
+    showToast('저장됐어요!');
+  }
+  showScreen('home');
+}
+
+function exportCSV() {
+  const headers = ['날짜','단일속도(m/s)','이중속도(m/s)','DTC(%)','정확도(%)','단일시간(s)','이중시간(s)','단일걸음','이중걸음'];
+  const rows = S.history.map(r => [
+    new Date(r.date).toLocaleString('ko-KR'),
+    r.stSpeed, r.dtSpeed, r.dtc, r.accuracy,
+    r.stTime, r.dtTime, r.stSteps, r.dtSteps
+  ].join(','));
+  const csv = '\uFEFF' + [headers.join(','), ...rows].join('\n');
+  const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'dualstep_' + new Date().toISOString().slice(0,10) + '.csv';
+  a.click();
+  showToast('CSV 다운로드 시작');
+}
+
+/* ════════════════════════════════════════
+   기록 렌더링
+════════════════════════════════════════ */
+function renderHistory() {
+  const body = document.getElementById('history-body');
+  document.getElementById('history-count').textContent = S.history.length + '건';
+  if (S.history.length === 0) {
+    body.innerHTML = `<div class="empty">
+      <div class="empty-icon">📭</div>
+      <div class="empty-text">아직 검사 기록이 없어요</div>
+    </div>`;
+    return;
+  }
+  body.innerHTML = S.history.map(r => {
+    const c = r.dtc <= 15 ? '#10b981' : r.dtc <= 25 ? '#f59e0b' : '#ef4444';
+    return `<div class="history-item">
+      <div class="history-top">
+        <span class="history-date">${new Date(r.date).toLocaleString('ko-KR',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}</span>
+        <span class="history-dtc" style="color:${c}">DTC ${r.dtc}%</span>
+      </div>
+      <div class="history-stats">
+        <span class="history-stat">단일 <span>${r.stSpeed}m/s</span></span>
+        <span class="history-stat">이중 <span>${r.dtSpeed}m/s</span></span>
+        <span class="history-stat">정확도 <span>${r.accuracy}%</span></span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function stopAll() {
+  S.stRunning = false; S.dtRunning = false;
+  clearInterval(S.stInterval); clearInterval(S.dtInterval);
+  stopAccelerometer();
+}
+
+// 초기화
+renderHistory();
+</script>
+</body>
+</html>
